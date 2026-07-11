@@ -1,17 +1,19 @@
 # chessResults
 
 <!-- badges: start -->
-[![Lifecycle: experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)
+[![CRAN status](https://www.r-pkg.org/badges/version/chessResults)](https://cran.r-project.org/package=chessResults)
 <!-- badges: end -->
 
-The goal of chessResults is to make it easier to scrap [chess-results.com](https://chess-results.com) in R.
+The goal of chessResults is to make it easier to scrape [chess-results.com](https://chess-results.com) in R. It currently returns a list of 5 elements: tournament information, starting rank, playing schedule, pairings/results for rounds, and closing rank. It does all of this in a polite manner to ensure that the [chess-results.com](https://chess-results.com) servers are not overwhelmed. Just supply the URL or the ID that is in the URL to the function and you are done.
+
+**NOTE: the package currently does not support scraping tournament information for tournaments older than 5 days, and you will be warned about it when you scrape those pages.**
 
 ## Installation
 
-You can install the development version of chessResults like so:
+You can install the latest version of chessResults from CRAN like so:
 
 ```r
-pak::pak("git::https://codeberg.org/SirfHaru/chessResults.git")
+install.packages("chessResults")
 ```
 
 ## Example
@@ -19,26 +21,60 @@ pak::pak("git::https://codeberg.org/SirfHaru/chessResults.git")
 ```r
 library(chessResults)
 
-data <- chess_results("1443765")
+data <- chess_results("1445162")
 dplyr::glimpse(data)
-# List of 2
-#  $ tournament_information  : tibble [1 × 11] (S3: tbl_df/tbl/data.frame)
-#   ..$ federation          : chr "HKG"
-#   ..$ chief_arbiter_1     : chr "GM Andres Gallego"
-#   ..$ time_control        : chr "Standard: 90min +30sec increment per move starting from move 1"
-#   ..$ pairing_program_1   : chr "ChessManager"
-#   ..$ location            : chr "Hong Kong"
-#   ..$ number_of_rounds    : int 5
-#   ..$ tournament_type     : chr "Swiss-System"
-#   ..$ rating_calculation_1: chr "Rating international"
-#   ..$ start_date          : Date[1:1], format: "2026-07-03"
-#   ..$ end_date            : Date[1:1], format: "2026-07-05"
-#   ..$ average_rating      : int 1650
-#  $ tournament_starting_rank: tibble [26 × 6] (S3: tbl_df/tbl/data.frame)
-#   ..$ title       : chr [1:26] "CM" "CM" "FM" NA ...
-#   ..$ name        : chr [1:26] "Kao, Jamison Edrich" "Jimenez Alvarado, Jimmy Joseph" "Lam, Daniel King Wai" "Nguyen, Paul Ashton" ...
-#   ..$ fide_id     : int [1:26] 6007937 4427360 6001238 6007996 6009727 6009999 6002552 6002340 6021212 6012710 ...
-#   ..$ rating      : int [1:26] 2242 2031 1986 1915 1905 1905 1845 1793 1723 1711 ...
-#   ..$ sex         : chr [1:26] "M" "M" "M" "M" ...
-#   ..$ club_or_city: logi [1:26] NA NA NA NA NA NA ...
+# List of 5
+#  $ tournament_information  : tibble [1 × 20] (S3: tbl_df/tbl/data.frame)
+#   ..$ tournament_name      : chr "Kamyshin OPEN rapid 2026"
+#   ..$ federation           : chr "RUS"
+#   ..$ tournament_director_1: chr "Cherenkov"
+#   ..$ tournament_director_2: chr "Andrey FIDE ID: 4185315"
+#   ..$ chief_arbiter_1      : chr "Sevostjanov"
+#   ..$ chief_arbiter_2      : chr "Roman FIDE ID: 24148482"
+#   ..$ time_control         : chr "10'+5\""
+#   ..$ rapid                : logi TRUE
+#   ..$ location             : chr "Kamyshin"
+#   ..$ number_of_rounds     : int 11
+#   ..$ tournament_type      : chr "Swiss-System"
+#   ..$ rating_calculation_1 : chr "Rating national"
+#   ..$ rating_calculation_2 : chr "Rating international"
+#   ..$ fide_event_id        : int 483777
+#   ..$ start_date           : Date[1:1], format: "2026-07-09"
+#   ..$ end_date             : Date[1:1], format: "2026-07-10"
+#   ..$ average_rating       : int 1685
+#   ..$ average_age          : int 24
+#   ..$ pairing_program_1    : chr "Swiss-Manager from Heinz Herzog"
+#   ..$ pairing_program_2    : chr "Swiss-Manager tournamentfile"
+#  $ tournament_starting_rank: tibble [45 × 5] (S3: tbl_df/tbl/data.frame)
+#   ..$ title     : chr [1:45] NA NA NA NA ...
+#   ..$ name      : chr [1:45] "Андрей Федотов" "Андрей Андреевич Черенков" "Вячеслав Васекин" "Никита Алексеевич Карулин" ...
+#   ..$ fide_id   : int [1:45] 24197351 4185315 55715265 34339663 34479767 24166804 55895549 24244732 24177580 55791565 ...
+#   ..$ federation: chr [1:45] "RUS" "RUS" "RUS" "RUS" ...
+#   ..$ rating    : int [1:45] 2094 2077 1940 2116 2098 1961 2026 1895 1930 1901 ...
+#  $ playing_schedule        : tibble [11 × 2] (S3: tbl_df/tbl/data.frame)
+#   ..$ date: Date[1:11], format: "2026-07-09" "2026-07-09" ...
+#   ..$ time: 'hms' num [1:11] 16:00:00 16:30:00 17:00:00 17:30:00 ...
+#   .. ..- attr(*, "units")= chr "secs"
+#  $ rounds                  :List of 11
+#   ..$ : tibble [23 × 12] (S3: tbl_df/tbl/data.frame)
+#   ..$ : tibble [23 × 12] (S3: tbl_df/tbl/data.frame)
+#   ..$ : tibble [23 × 12] (S3: tbl_df/tbl/data.frame)
+#   ..$ : tibble [23 × 12] (S3: tbl_df/tbl/data.frame)
+#   ..$ : tibble [23 × 12] (S3: tbl_df/tbl/data.frame)
+#   ..$ : tibble [23 × 12] (S3: tbl_df/tbl/data.frame)
+#   ..$ : tibble [23 × 12] (S3: tbl_df/tbl/data.frame)
+#   ..$ : tibble [23 × 12] (S3: tbl_df/tbl/data.frame)
+#   ..$ : tibble [23 × 12] (S3: tbl_df/tbl/data.frame)
+#   ..$ : tibble [23 × 12] (S3: tbl_df/tbl/data.frame)
+#   ..$ : tibble [23 × 12] (S3: tbl_df/tbl/data.frame)
+#  $ closing_rank            : tibble [45 × 9] (S3: tbl_df/tbl/data.frame)
+#   ..$ starting_rank: int [1:45] 9 4 5 6 2 10 13 12 1 3 ...
+#   ..$ title        : chr [1:45] NA NA NA NA ...
+#   ..$ name         : chr [1:45] "Павел Кузуб" "Никита Алексеевич Карулин" "Тимофей Тютюнов" "Владислав Бельский" ...
+#   ..$ federation   : chr [1:45] "RUS" "RUS" "RUS" "RUS" ...
+#   ..$ rating       : int [1:45] 1930 2116 2098 1961 2077 1901 1853 1835 2094 1940 ...
+#   ..$ points       : num [1:45] 9 9 8 8 8 7 7 7 6.5 6.5 ...
+#   ..$ tie_breaker_1: num [1:45] 0 0 1 2 3 0 0 0 0 0 ...
+#   ..$ tie_breaker_2: num [1:45] 77 76 78 76 76.5 75 69 64.5 78.5 75 ...
+#   ..$ tie_breaker_3: num [1:45] 72 71.5 73 71.5 71 71 64.5 62 74 70 ...
 ```

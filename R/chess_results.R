@@ -1,78 +1,147 @@
-#' Get all Data for a Tournament
+#' Get all data for a tournament
 #'
-#' For a given URL, or tournament ID (which can be found in the URL),
-#' this function scraps a list of tibbles and related data which are
-#' found on that page.
+#' Scrape a list of tibble from chess-results.com by giving a URL
+#' or tournament ID. (The tournament ID can be found in the URL).
+#' It currently returns tournament information, starting rank,
+#' playing schedule, pairings/results for each round, and closing rank.
 #'
-#' @param id The URL of the chess-results.com tournament page or
-#'           the id that is present in the URL, supplied as a string.
-#' @returns A list of tibbles about the different aspects of the tournament.
+#' @param id The URL or the tournament ID of the tournament page
+#' @param user_agent The User Agent to be used when accessing
+#'                   chess-results.com
+#' @returns A list of tibble about the different aspects of
+#'          the tournament. The sub-list contains the data for
+#'          the pairings/results for each round.
 #'
 #' @examples
-#' chess_results("1443765")
-#'
-#' chess_results("https://chess-results.com/tnr134.aspx")
+#' \donttest{
+#' chess_results("https://s3.chess-results.com/tnr1445162.aspx?lan=1")
+#' }
 #' @export
 
-chess_results <- function(id) {
-  url <- chess_results_standard_url(id)
-  page_html <- chess_results_read_html(url)
-  main_tournament_tables <- chess_results_read_main_tables(page_html, url)
-  main_tournament_tables[[1]] <-
-    chess_results_fix_table_1(main_tournament_tables)
-  if (length(main_tournament_tables) == 1) {
-    list(NA, main_tournament_tables[[1]])
-  }
-  main_tournament_tables[[2]] <-
-    chess_results_fix_table_2(main_tournament_tables)
-  main_tournament_tables <-
-    chess_results_fix_main_table_names(main_tournament_tables)
-  if (!is.data.frame(main_tournament_tables[[1]])) {
-    warning(paste0("The tournament is more than 5 days old. ",
-                   "tournament_information is NA. ",
-                   "Please help the developer in scraping tables ",
-                   "for such tournaments at the Codeberg repo."))
-  }
-  return(main_tournament_tables)
+chess_results <- function(id, user_agent = "chessResults R package") {
+  tournament_data <- harvest_tournament_data(id, user_agent)
+  tournament_data[[1]] <-
+    fix_tournament_information(tournament_data)
+  tournament_data[[2]] <-
+    fix_starting_rank(tournament_data)
+  tournament_data[[3]] <-
+    fix_playing_schedule(tournament_data)
+  tournament_data[[4]] <-
+    fix_rounds(tournament_data)
+  tournament_data[[5]] <-
+    fix_closing_rank(tournament_data)
+  tournament_data <-
+    fix_list_names(tournament_data)
+  return(tournament_data)
 }
 
-chess_results_standard_url <- function(id) {
+extract_correct_id <- function(id) {
   if (startsWith(id, "https")) {
     id <- sub(".*tnr *(.*?) *\\.aspx.*",
               "\\1", id)
   }
-  url <- paste0("https://chess-results.com/tnr",
-                id, ".aspx?lan=1&art=0&turdet=ALL&flag=NO")
+  return(id)
+}
+
+generate_url <- function(id, page, round = NA) {
+  if (is.na(round)) {
+    url <- paste0("https://chess-results.com/tnr",
+                  id, ".aspx?lan=1&art=", page, "&turdet=ALL&flag=NO",
+                  "&zeilen=99999")
+  } else {
+    url <- paste0("https://chess-results.com/tnr",
+                  id, ".aspx?lan=1&art=", page, "&turdet=ALL&flag=NO&rd=",
+                  round, "&zeilen=99999")
+  }
   return(url)
 }
 
-chess_results_read_html <- function(url) {
-  page_html <- url |>
-    rvest::read_html()
-  return(page_html)
-}
 
-chess_results_read_main_tables <- function(page_html, url) {
-  if (!grepl("defaultDialogMsg", page_html, fixed = TRUE)) {
-    main_tournament_tables <- page_html |>
-      rvest::html_elements("table") |>
-      rvest::html_table(convert = TRUE, na.strings = c("", 0, ".", "-"))
-    main_tournament_tables <- main_tournament_tables[c(4, 6)]
+harvest_tournament_data <- function(id, user_agent) {
+  id <- extract_correct_id(id)
+  polite_read_html <-
+    suppressMessages(
+      polite::politely(rvest::read_html,
+                       delay = 1,
+                       user_agent = user_agent))
+  message("Politely harvesting tournament_information and starting_rank.")
+  url <- generate_url(id, 0)
+  page_html <- polite_read_html(url)
+  temporary_tournament_name <- page_html |>
+    rvest::html_elements("title") |>
+    rvest::html_text()
+  tournament_name <- sub("\r\n\tChess-Results Server Chess-results.com - ",
+                         "", temporary_tournament_name, fixed = TRUE)
+  tournament_name <- sub("\r\n", "", tournament_name, fixed = TRUE)
+  tournament_data <- page_html |>
+    rvest::html_elements("table") |>
+    rvest::html_table(convert = TRUE,
+                      na.strings = c("", 0, ".", "-"))
+  if (grepl("defaultDialogMsg", page_html, fixed = TRUE)) {
+    # This section needs rvest::read_html_live() to click the button for
+    # showing tournament details. I have not figured out how to do that yet,
+    # so this is currently returning just a NA for tournament_information.
+    table_position <- 4
+    tournament_data <- list(NA, tournament_data[[table_position]])
+    warning(paste0("The tournament is more than 5 days old. ",
+                   "tournament_information is NA. ",
+                   "Please help the developer in scrapping ",
+                   "the tibble for such tournaments ",
+                   "at the Codeberg repo. ",
+                   "<https://codeberg.org/SirfHaru/chessresults>"))
   } else {
-    # This section needs read_html_live to click the button to
-    # show tournament details. I have not figured out how to do that,
-    # so this is just currently returning a NA for table 1 for now.
-    main_tournament_tables <- page_html |>
-      rvest::html_elements("table") |>
-      rvest::html_table(convert = TRUE, na.strings = c("", 0, ".", "-"))
-    main_tournament_tables <- main_tournament_tables[c(4, 6)]
-    main_tournament_tables <- rev(main_tournament_tables)
+    table_position <- 6
+    tournament_data <- tournament_data[c(table_position - 2,
+                                         table_position)]
+    # Move the following line outside of the conditional
+    # when rvest::read_html_live is implemented in the if part.
+    tournament_data[[1]] <-
+      tibble::add_row(tournament_data[[1]], X1 = "tournament_name",
+                      X2 = tournament_name, .before = 1)
   }
-  return(main_tournament_tables)
+  message("Politely harvesting playing_schedule.")
+  url <- generate_url(id, 14)
+  page_html <- polite_read_html(url)
+  temporary_tournament_data <- page_html |>
+    rvest::html_elements("table") |>
+    rvest::html_table()
+  tournament_data[[3]] <- temporary_tournament_data[[table_position]]
+  message("Politely harvesting rounds.")
+  url <- generate_url(id, 2, 0)
+  page_html <- polite_read_html(url)
+  temporary_tournament_data <-
+    page_html |>
+    rvest::html_elements("table") |>
+    rvest::html_table(header = TRUE,
+                      convert = TRUE,
+                      na.strings = c("", 0))
+  table_position <- table_position - 1
+  tournament_data[[4]] <-
+    temporary_tournament_data[-c(1:table_position,
+                                 length(temporary_tournament_data))]
+  tournament_data[[4]] <- rev(tournament_data[[4]])
+  message("Politely harvesting closing_rank.")
+  # The following if-else statement has been added due to the same reason
+  # as the one for tournament_information. Scrapping without that
+  # rvest::read_html_live massively complicates the problem. So, I am
+  # shutting it down for now.
+  url <- generate_url(id, 1)
+  page_html <- polite_read_html(url)
+  temporary_tournament_data <- page_html |>
+    rvest::html_elements("table") |>
+    rvest::html_table(convert = TRUE,
+                      na.strings = c(""))
+  table_position <- table_position + 1
+  if (length(temporary_tournament_data) < table_position) {
+    tournament_data[[5]] <- NA
+  } else {
+    tournament_data[[5]] <- temporary_tournament_data[[table_position]]
+  }
+  return(tournament_data)
 }
 
-chess_results_table_header_names <- function() {
-  table_header_names <-
+column_names <- function() {
+  column_names <-
     list(list(organizer = "organizer_s",
               average_rating = "rating_o"),
          list(title = "x1",
@@ -82,134 +151,334 @@ chess_results_table_header_names <- function() {
               international_rating = "rtg_i",
               national_rating = "rtg_n",
               group = "gr",
-              type = "typ"))
-  return(table_header_names)
+              type = "typ"),
+         list(white_title = "x",
+              white_rating = "rtg",
+              white_club_or_city = "club_city",
+              white_points = "pts",
+              black_title = "x_2",
+              black_rating = "rtg_2",
+              black_club_or_city = "club_city_2",
+              black_points = "pts_2",
+              white_rank = "no",
+              black_rank = "no_2"),
+         list(title = "x",
+              rating = "rtg",
+              federation = "fed",
+              points = "pts",
+              starting_rank = "s_no"))
+  return(column_names)
 }
 
-chess_results_transpose_table_1 <- function(main_tournament_table) {
-  main_tournament_table <- main_tournament_table |>
+transpose_tournament_information <- function(tournament_data) {
+  tournament_data <- tournament_data |>
     t() |>
     janitor::row_to_names(1) |>
-    tibble::as_tibble()
-  return(main_tournament_table)
+    tibble::as_tibble() |>
+    dplyr::mutate(
+      dplyr::across(
+        dplyr::where(is.character), stringr::str_trim))
+  return(tournament_data)
 }
 
-chess_results_split_table_1 <- function(main_tournament_table) {
-  if ("date" %in% colnames(main_tournament_table)) {
-    main_tournament_table <- main_tournament_table |>
+split_tournament_information <- function(tournament_data) {
+  columns <- colnames(tournament_data)
+  if ("date" %in% columns) {
+    tournament_data <- tournament_data |>
       tidyr::separate_wider_delim("date",
                                   delim = " to ",
-                                  names = c("start_date",
-                                            "end_date"),
+                                  names = c("start_date", "end_date"),
                                   too_few = "align_start")
+    if (is.na(tournament_data["end_date"])) {
+      tournament_data["end_date"] <- tournament_data["start_date"]
+    }
   }
-  if (is.na(main_tournament_table["end_date"])) {
-    main_tournament_table["end_date"] <- main_tournament_table["start_date"]
-  }
-  if ("rating_o_average_age" %in% colnames(main_tournament_table)) {
-    main_tournament_table <- main_tournament_table |>
+  if ("rating_o_average_age" %in% columns) {
+    tournament_data <- tournament_data |>
       tidyr::separate_wider_delim("rating_o_average_age",
                                   delim = " / ",
-                                  names = c("average_rating",
-                                            "average_age"))
+                                  names = c("average_rating", "average_age"))
   }
-  return(main_tournament_table)
-}
-
-chess_results_table_1_suffix <- function(main_tournament_table) {
   for (i in c("organizer", "tournament_director", "arbiter",
               "chief_arbiter", "deputy_chief_arbiter",
               "rating_calculation", "pairing_program")) {
-    if (i %in% colnames(main_tournament_table)) {
-      main_tournament_table <- main_tournament_table |>
+    if (i %in% columns) {
+      tournament_data[i] <- tournament_data[i] |>
+        unlist() |>
+        stringr::str_replace("[,]{1,}$", "")
+      tournament_data <- tournament_data |>
         tidyr::separate_wider_delim(dplyr::all_of(i),
                                     delim = stringr::regex("[,;]\\s*"),
                                     names_sep = "_")
     }
   }
-  return(main_tournament_table)
+  for (i in c("standard", "rapid", "blitz", "bullet")) {
+    if (any(grepl(i, columns))) {
+      tournament_data <- tournament_data |>
+        cbind(i = TRUE)
+      names(tournament_data)[ncol(tournament_data)] <-
+        i
+      tournament_data <- tournament_data |>
+        dplyr::rename_with(~ paste0("time_control"),
+                           dplyr::contains("time_control"))
+      tournament_data <- tournament_data |>
+        dplyr::relocate(
+          names(tournament_data)[ncol(tournament_data)],
+          .after = "time_control")
+    }
+  }
+  return(tournament_data)
 }
 
-chess_results_table_1_time_and_federation <-
-  function(main_tournament_table) {
-    for (i in c("Standard", "Rapid", "Blitz")) {
-      if (any(grepl(i, colnames(main_tournament_table)))) {
-        main_tournament_table <- main_tournament_table |>
-          cbind(i = TRUE)
-        names(main_tournament_table)[ncol(main_tournament_table)] <-
-          tolower(i)
-      }
-    }
-    main_tournament_table <- main_tournament_table |>
-      dplyr::rename_with(~ paste0("time_control"),
-                         dplyr::contains("time_control"))
-    main_tournament_table <- main_tournament_table |>
-      dplyr::relocate(
-        names(main_tournament_table)[ncol(main_tournament_table)],
-        .after = "time_control")
-    main_tournament_table["federation"][1,1] <-
+fix_tournament_information_data <- function(tournament_data) {
+  columns <- colnames(tournament_data)
+  if ("federation" %in% columns) {
+    tournament_data["federation"][1,1] <-
       gsub(".*\\( (.+) \\).*", "\\1",
-           main_tournament_table["federation"][1,1])
-    return(main_tournament_table)
+           tournament_data["federation"][1,1])
   }
-
-chess_results_table_1_class <- function(main_tournament_table) {
-  for (i in c("number_of_rounds",
-              "average_rating",
-              "average_age",
-              "fide_event_id")) {
-    if (i %in% colnames(main_tournament_table)) {
-      main_tournament_table[c(i)] <-
-        lapply(main_tournament_table[c(i)], as.integer)
+  for (i in c("number_of_rounds", "average_rating",
+              "average_age", "fide_event_id")) {
+    if (i %in% columns) {
+      tournament_data[c(i)] <-
+        lapply(tournament_data[c(i)], as.integer)
     }
   }
-  if (tryCatch(readr::parse_date(main_tournament_table$start_date),
-               error=function(x) NA)) {
-    main_tournament_table[c("start_date",
-                            "end_date")] <-
-      lapply(main_tournament_table[c("start_date",
-                                     "end_date")], readr::parse_date)
+  if ("start_date" %in% columns) {
+    tournament_data[c("start_date", "end_date")] <-
+      lapply(tournament_data[c("start_date", "end_date")],
+             readr::parse_date)
   }
-  main_tournament_table <- main_tournament_table |>
-    dplyr::mutate(
-      dplyr::across(
-        dplyr::where(is.character), stringr::str_trim))
-  return(main_tournament_table)
+  for (i in c("name", "location", "time_control")) {
+    if (i %in% columns) {
+      tournament_data[i] <- tournament_data[i] |>
+        unlist() |>
+        stringr::str_replace("[,]{1,}$", "")
+    }
+  }
+  tournament_data <- tournament_data |>
+    tibble::as_tibble()
+  return(tournament_data)
 }
 
-chess_results_fix_table_1 <- function(main_tournament_tables) {
-  main_tournament_table <- main_tournament_tables[[1]]
-  if (is.null(main_tournament_table)) {
+fix_tournament_information <- function(tournament_data) {
+  tournament_data <- tournament_data[[1]]
+  if (!is.data.frame(tournament_data)) {
     return(NA)
   }
-  main_tournament_table <- main_tournament_table |>
-    chess_results_transpose_table_1() |>
+  tournament_data <- tournament_data |>
+    transpose_tournament_information() |>
     janitor::clean_names() |>
     dplyr::rename(
       dplyr::any_of(
-        unlist(chess_results_table_header_names()[[1]]))) |>
-    chess_results_split_table_1() |>
-    chess_results_table_1_time_and_federation() |>
-    chess_results_table_1_suffix() |>
-    chess_results_table_1_class()
-  return(main_tournament_table)
+        unlist(column_names()[[1]]))) |>
+    split_tournament_information() |>
+    fix_tournament_information_data()
+  return(tournament_data)
 }
 
-chess_results_fix_table_2 <- function(main_tournament_tables) {
-  main_tournament_table <- main_tournament_tables[[2]]
-  main_tournament_table <- main_tournament_table |>
+fix_names_and_remove_comma <- function(tournament_data) {
+  columns <- colnames(tournament_data)
+  for (i in columns) {
+    if (i %in% c("name", "club_or_city", "white", "black",
+                 "white_club_or_city", "black_club_or_city")) {
+      tournament_data[i] <- tournament_data[i] |>
+        unlist() |>
+        stringr::str_replace("[,]{1,}$", "")
+      if (i %in% c("name", "black", "white")) {
+        tournament_data[i] <-
+          sub("(^.*),\\s(.*$)","\\2 \\1", tournament_data[[i]])
+      }
+    }
+  }
+  return(tournament_data)
+}
+
+fix_starting_rank_data <- function(tournament_data) {
+  columns <- colnames(tournament_data)
+  for (i in c("name", "club_or_city")) {
+    if (i %in% columns) {
+      tournament_data[i] <- tournament_data[i] |>
+        unlist() |>
+        stringr::str_replace("[,]{1,}$", "")
+    }
+  }
+  if ("sex" %in% columns) {
+    tournament_data["sex"] <-
+      lapply(tournament_data["sex"],
+             stringr::str_to_upper)
+  }
+  tournament_data <- fix_names_and_remove_comma(tournament_data)
+  if ("title" %in% columns) {
+    tournament_data["title"] <- lapply(tournament_data["title"],
+                                       as.character)
+  }
+  tournament_data[] <-
+    lapply(tournament_data, function(x) { attributes(x) <- NULL; x })
+  return(tournament_data)
+}
+
+fix_starting_rank <- function(tournament_data) {
+  tournament_data <- tournament_data[[2]]
+  tournament_data <- tournament_data |>
     subset(select = -c(1))
-  main_tournament_table <- main_tournament_table |>
+  tournament_data <- tournament_data |>
     tibble::as_tibble(.name_repair = "universal_quiet") |>
     janitor::clean_names() |>
     dplyr::rename(
       dplyr::any_of(
-        unlist(chess_results_table_header_names()[[2]])))
-  return(main_tournament_table)
+        unlist(column_names()[[2]]))) |>
+    fix_starting_rank_data()
+  return(tournament_data)
 }
 
-chess_results_fix_main_table_names <- function(main_tournament_tables) {
-  names(main_tournament_tables) <- c("tournament_information",
-                                     "tournament_starting_rank")
-  return(main_tournament_tables)
+fix_playing_schedule_data <- function(tournament_data) {
+  columns <- colnames(tournament_data)
+  if ("date" %in% columns) {
+    tournament_data["date"] <- lapply(tournament_data["date"],
+                                      readr::parse_date)
+  }
+  if ("time" %in% columns) {
+    tournament_data["time"] <- lapply(tournament_data["time"],
+                                      readr::parse_time)
+  }
+  return(tournament_data)
+}
+
+fix_playing_schedule <- function(tournament_data) {
+  tournament_data <- tournament_data[[3]]
+  if (identical(tournament_data$Date[1], "unknown")) {
+    return(NA)
+  }
+  tournament_data <- tournament_data |>
+    subset(select = -c(1))
+  tournament_data <- tournament_data |>
+    janitor::clean_names() |>
+    fix_playing_schedule_data()
+  return(tournament_data)
+}
+
+split_rounds <- function(tournament_data) {
+  tournament_data <- tournament_data |>
+    tidyr::separate_wider_delim("result",
+                                delim = " - ",
+                                names = c("white_result",
+                                          "black_result"),
+                                too_few = "align_start")
+  return(tournament_data)
+}
+
+fix_rounds_data <- function(tournament_data) {
+  columns <- colnames(tournament_data)
+  tournament_data <- fix_names_and_remove_comma(tournament_data)
+  for (i in columns) {
+    if (i %in% c("white_result", "black_result",
+                 "white_points", "black_points")) {
+      tournament_data[tournament_data == "+"] <- "1"
+      tournament_data[tournament_data == "-"] <- "0"
+      tournament_data[i] <- lapply(tournament_data[i],
+                                   function(x) gsub("\u00BD", ".5", x))
+      tournament_data[i] <- lapply(tournament_data[i],
+                                   readr::parse_double)
+    }
+  }
+  for (i in c("white_title", "black_title", "white", "black")) {
+    tournament_data[i] <- lapply(tournament_data[i],
+                                 as.character)
+  }
+  for (i in c("white_rating", "black_rank",
+              "black_rating", "white_rank")) {
+    if (i %in% columns) {
+      tournament_data[i] <- lapply(tournament_data[i],
+                                   as.integer)
+    }
+  }
+  tournament_data[] <-
+    lapply(tournament_data, function(x) { attributes(x) <- NULL; x })
+  return(tournament_data)
+}
+
+fix_rounds <- function(tournament_data) {
+  tournament_data <- tournament_data[[4]]
+  if (identical(tournament_data, list())) {
+    return(NA)
+  }
+  for (i in 1:length(tournament_data)) {
+    tournament_data[[i]] <- tournament_data[[i]] |>
+      subset(select = -c(1))
+    tournament_data[[i]] <- tournament_data[[i]] |>
+      tibble::as_tibble(.name_repair = "minimal") |>
+      janitor::clean_names() |>
+      dplyr::rename(
+        dplyr::any_of(
+          unlist(column_names()[[3]]))) |>
+      split_rounds() |>
+      fix_rounds_data()
+  }
+  return(tournament_data)
+}
+
+fix_closing_rank_data <- function(tournament_data) {
+  columns <- colnames(tournament_data)
+  for (i in c("title", "federation")) {
+    if (i %in% columns) {
+      tournament_data[i] <- lapply(tournament_data[i],
+                                   as.character)
+    }
+  }
+  if ("rating" %in% columns) {
+    tournament_data["rating"] <-
+      dplyr::na_if(tournament_data[["rating"]], 0)
+    tournament_data["rating"] <- lapply(tournament_data["rating"],
+                                        as.integer)
+  }
+  if ("points" %in% columns) {
+    tournament_data["points"] <- sub(",", ".", tournament_data[["points"]])
+    tournament_data["points"] <- lapply(tournament_data["points"],
+                                        readr::parse_double)
+  }
+  for (i in columns) {
+    if (grepl("tb", i, fixed = TRUE)) {
+      tournament_data[i] <- gsub(",", ".", tournament_data[[i]],
+                                 fixed = TRUE)
+      tournament_data[i] <- lapply(tournament_data[i],
+                                   readr::parse_double)
+    }
+  }
+  for (i in columns) {
+    if (grepl("tb", i, fixed = TRUE)) {
+      names(tournament_data) <- sub("tb", "tie_breaker_",
+                                    names(tournament_data),
+                                    fixed = TRUE)
+    }
+  }
+  tournament_data <- fix_names_and_remove_comma(tournament_data)
+  tournament_data[] <-
+    lapply(tournament_data, function(x) { attributes(x) <- NULL; x })
+  return(tournament_data)
+}
+
+fix_closing_rank <- function(tournament_data) {
+  tournament_data <- tournament_data[[5]]
+  if (!is.data.frame(tournament_data)) {
+    return(NA)
+  }
+  tournament_data <- tournament_data |>
+    subset(select = -c(1))
+  tournament_data <- tournament_data |>
+    janitor::clean_names() |>
+    dplyr::rename(
+      dplyr::any_of(
+        unlist(column_names()[[4]]))) |>
+    fix_closing_rank_data()
+  return(tournament_data)
+}
+
+fix_list_names <- function(tournament_data) {
+  names(tournament_data) <- c("tournament_information",
+                              "tournament_starting_rank",
+                              "playing_schedule",
+                              "rounds",
+                              "closing_rank")
+  return(tournament_data)
 }

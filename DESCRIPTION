@@ -1,24 +1,29 @@
 Package: chessResults
-Title: Scrapper for Chess-Results.com
-Version: 2026.07.05
-Authors@R: person("SirfHaru", email = "105.hydrated233@passinbox.com", 
-    role = c("aut", "cre"))
-Description: Scrap data from chess-results.com and return a clean 'tibble'.
-    Currently only supports tournament details and starting rank table.
+Title: Scraper for Chess-Results.com
+Version: 2026.07.12
+Authors@R: person("Sirf", "Haru", email = "sirfharu@proton.me",
+    role = c("aut", "cre", "cph"))
+Description: Scrape data from <https://chess-results.com> and get a clean 
+    'tibble'. Currently supports tournament information, starting rank,
+    playing schedule, pairings/results for rounds, and closing rank. 
+    All requests to the <https://chess-results.com> server are made using 
+    'polite'.
 License: GPL (>= 3)
-URL: https://codeberg.org/SirfHaru/chessResults
-BugReports: https://codeberg.org/SirfHaru/chessResults/issues
-Imports: dplyr (>= 1.2.1), janitor (>= 2.2.1), stringr (>= 1.6.0),
-        tibble (>= 3.3.1), tidyr (>= 1.3.2), readr (>= 2.2.0), rvest
-        (>= 1.0.5)
+URL: https://codeberg.org/SirfHaru/chessresults
+        https://sirfharu.codeberg.page/chessresults
+BugReports: https://codeberg.org/SirfHaru/chessresults/issues
+Imports: dplyr (>= 1.2.1), janitor (>= 2.2.1), polite (>= 0.1.4),
+        stringr (>= 1.6.0), tibble (>= 3.3.1), tidyr (>= 1.3.2), readr
+        (>= 2.2.0), rvest (>= 1.0.5)
 Depends: R (>= 4.6.0)
-Suggests: testthat (>= 3.0.0)
+Suggests: spelling (>= 2.3.2)
 Config/testthat/edition: 3
 Encoding: UTF-8
 RoxygenNote: 8.0.0
+Language: en-US
 NeedsCompilation: no
-Packaged: 2026-07-05 07:24:09 UTC; insaan
-Author: SirfHaru [aut, cre]
-Maintainer: SirfHaru <105.hydrated233@passinbox.com>
+Packaged: 2026-07-11 15:15:32 UTC; insaan
+Author: Sirf Haru [aut, cre, cph]
+Maintainer: Sirf Haru <sirfharu@proton.me>
 Repository: CRAN
-Date/Publication: 2026-07-11 08:50:06 UTC
+Date/Publication: 2026-07-11 16:20:02 UTC

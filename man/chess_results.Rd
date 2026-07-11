@@ -2,24 +2,29 @@
 % Please edit documentation in R/chess_results.R
 \name{chess_results}
 \alias{chess_results}
-\title{Get all Data for a Tournament}
+\title{Get all data for a tournament}
 \usage{
-chess_results(id)
+chess_results(id, user_agent = "chessResults R package")
 }
 \arguments{
-\item{id}{The URL of the chess-results.com tournament page or
-the id that is present in the URL, supplied as a string.}
+\item{id}{The URL or the tournament ID of the tournament page}
+
+\item{user_agent}{The User Agent to be used when accessing
+chess-results.com}
 }
 \value{
-A list of tibbles about the different aspects of the tournament.
+A list of tibble about the different aspects of
+the tournament. The sub-list contains the data for
+the pairings/results for each round.
 }
 \description{
-For a given URL, or tournament ID (which can be found in the URL),
-this function scraps a list of tibbles and related data which are
-found on that page.
+Scrape a list of tibble from chess-results.com by giving a URL
+or tournament ID. (The tournament ID can be found in the URL).
+It currently returns tournament information, starting rank,
+playing schedule, pairings/results for each round, and closing rank.
 }
 \examples{
-chess_results("1443765")
-
-chess_results("https://chess-results.com/tnr134.aspx")
+\donttest{
+chess_results("https://s3.chess-results.com/tnr1445162.aspx?lan=1")
+}
 }
