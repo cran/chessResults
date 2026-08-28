@@ -14,7 +14,9 @@
 #'
 #' @examples
 #' \donttest{
-#' chess_results("https://s3.chess-results.com/tnr1445162.aspx?lan=1")
+#' url <- "https://s3.chess-results.com/tnr1445162.aspx?lan=1"
+#' data <- chess_results(url)
+#' dplyr::glimpse(data)
 #' }
 #' @export
 
@@ -59,14 +61,9 @@ generate_url <- function(id, page, round = NA) {
 
 harvest_tournament_data <- function(id, user_agent) {
   id <- extract_correct_id(id)
-  polite_read_html <-
-    suppressMessages(
-      polite::politely(rvest::read_html,
-                       delay = 1,
-                       user_agent = user_agent))
-  message("Politely harvesting tournament_information and starting_rank.")
+  message("Harvesting tournament_information and starting_rank.")
   url <- generate_url(id, 0)
-  page_html <- polite_read_html(url)
+  page_html <- rvest::read_html(url)
   temporary_tournament_name <- page_html |>
     rvest::html_elements("title") |>
     rvest::html_text()
@@ -99,16 +96,16 @@ harvest_tournament_data <- function(id, user_agent) {
       tibble::add_row(tournament_data[[1]], X1 = "tournament_name",
                       X2 = tournament_name, .before = 1)
   }
-  message("Politely harvesting playing_schedule.")
+  message("Harvesting playing_schedule.")
   url <- generate_url(id, 14)
-  page_html <- polite_read_html(url)
+  page_html <- rvest::read_html(url)
   temporary_tournament_data <- page_html |>
     rvest::html_elements("table") |>
     rvest::html_table()
   tournament_data[[3]] <- temporary_tournament_data[[table_position]]
-  message("Politely harvesting rounds.")
+  message("Harvesting rounds.")
   url <- generate_url(id, 2, 0)
-  page_html <- polite_read_html(url)
+  page_html <- rvest::read_html(url)
   temporary_tournament_data <-
     page_html |>
     rvest::html_elements("table") |>
@@ -120,13 +117,9 @@ harvest_tournament_data <- function(id, user_agent) {
     temporary_tournament_data[-c(1:table_position,
                                  length(temporary_tournament_data))]
   tournament_data[[4]] <- rev(tournament_data[[4]])
-  message("Politely harvesting closing_rank.")
-  # The following if-else statement has been added due to the same reason
-  # as the one for tournament_information. Scrapping without that
-  # rvest::read_html_live massively complicates the problem. So, I am
-  # shutting it down for now.
+  message("Harvesting closing_rank.")
   url <- generate_url(id, 1)
-  page_html <- polite_read_html(url)
+  page_html <- rvest::read_html(url)
   temporary_tournament_data <- page_html |>
     rvest::html_elements("table") |>
     rvest::html_table(convert = TRUE,

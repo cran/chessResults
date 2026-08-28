@@ -25,6 +25,8 @@ playing schedule, pairings/results for each round, and closing rank.
 }
 \examples{
 \donttest{
-chess_results("https://s3.chess-results.com/tnr1445162.aspx?lan=1")
+url <- "https://s3.chess-results.com/tnr1445162.aspx?lan=1"
+data <- chess_results(url)
+dplyr::glimpse(data)
 }
 }

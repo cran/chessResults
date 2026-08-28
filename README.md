@@ -2,15 +2,16 @@
 
 <!-- badges: start -->
 [![CRAN status](https://www.r-pkg.org/badges/version/chessResults)](https://cran.r-project.org/package=chessResults)
+[![CRAN status](https://cranlogs.r-pkg.org/badges/grand-total/chessResults)](https://cran.r-project.org/package=chessResults)
 <!-- badges: end -->
 
-The goal of chessResults is to make it easier to scrape [chess-results.com](https://chess-results.com) in R. It currently returns a list of 5 elements: tournament information, starting rank, playing schedule, pairings/results for rounds, and closing rank. It does all of this in a polite manner to ensure that the [chess-results.com](https://chess-results.com) servers are not overwhelmed. Just supply the URL or the ID that is in the URL to the function and you are done.
+chessResults makes it easier to scrape [chess-results.com](https://chess-results.com) in R. It currently returns a list of 5 tidy elements: tournament information, starting rank, playing schedule, pairing/result for rounds, and closing rank. Just supply the URL or the ID that is in the URL to the `chess_results()` function and you are done.
 
-**NOTE: the package currently does not support scraping tournament information for tournaments older than 5 days, and you will be warned about it when you scrape those pages.**
+**NOTE: the package currently does not support scraping of tournament information for tournaments older than 5 days, and you will be warned about it when you try to do that. Tables other than tournament information will still be scraped.**
 
 ## Installation
 
-You can install the latest version of chessResults from CRAN like so:
+You can install the latest version of chessResults from CRAN like this:
 
 ```r
 install.packages("chessResults")
